@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BigQuery cost scan — report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FAFAF8; --card:#FFFFFF; --ink:#12161F; --muted:#646F7E;
+  --line:#E3E4E0; --line-soft:#EFEFEC;
+  --brand:#3B3AA8; --brand-wash:#EEEEFA;
+  --good:#2F6B4F; --good-wash:#E9F2ED;
+  --risk:#A8452B; --risk-wash:#FAEDE9;
+  --display:'Instrument Serif',Georgia,serif;
+  --sans:'IBM Plex Sans',system-ui,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+  font-size:15.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:940px;margin:0 auto;padding:0 24px 100px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.hide{display:none!important}
+
+/* masthead */
+header.top{display:flex;justify-content:space-between;align-items:center;
+  padding:26px 0;border-bottom:1px solid var(--line)}
+.brand{font-weight:600;font-size:15px;letter-spacing:-.01em}
+.brand em{font-family:var(--display);font-style:italic;font-size:19px;color:var(--brand)}
+.top-note{font-size:12.5px;color:var(--muted)}
+
+/* intake */
+.intake{padding:70px 0 40px;max-width:600px}
+.intake h1{font-family:var(--display);font-weight:400;font-size:46px;line-height:1.08;
+  margin:0 0 16px;letter-spacing:-.01em}
+.intake p{color:var(--muted);margin:0 0 26px}
+.drop{border:1.5px dashed var(--line);border-radius:10px;background:var(--card);
+  padding:34px 26px;text-align:center;transition:border-color .15s,background .15s;cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--brand);background:var(--brand-wash)}
+.drop-t{font-weight:500;margin-bottom:5px}
+.drop-s{font-size:13px;color:var(--muted)}
+textarea{width:100%;min-height:110px;margin-top:14px;padding:12px;border:1px solid var(--line);
+  border-radius:8px;font-family:var(--mono);font-size:12px;background:var(--card);
+  color:var(--ink);resize:vertical}
+.row{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+button{font-family:var(--sans);font-size:14px;font-weight:500;padding:9px 18px;
+  border-radius:7px;border:1px solid var(--brand);background:var(--brand);color:#fff;
+  cursor:pointer;transition:opacity .15s}
+button:hover{opacity:.88}
+button.ghost{background:none;color:var(--brand)}
+button.ghost:hover{background:var(--brand-wash);opacity:1}
+.err{color:var(--risk);font-size:13.5px;margin-top:12px;display:none}
+.privacy{margin-top:34px;padding:16px 18px;border-left:2px solid var(--good);
+  background:var(--good-wash);font-size:13.5px;color:#254F3B}
+.privacy b{font-weight:600}
+
+/* hero */
+.hero{padding:52px 0 40px;border-bottom:1px solid var(--line)}
+.kicker{font-size:11.5px;font-weight:600;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:14px}
+.big{font-family:var(--display);font-weight:400;font-size:clamp(60px,11vw,104px);
+  line-height:.94;letter-spacing:-.02em;color:var(--good);margin:0}
+.big-sub{font-size:17px;color:var(--muted);margin-top:12px}
+.split{display:flex;height:34px;border-radius:6px;overflow:hidden;margin-top:34px;
+  border:1px solid var(--line)}
+.split div{display:flex;align-items:center;justify-content:center;font-size:12px;
+  font-weight:500;font-family:var(--mono);color:#fff;min-width:0;overflow:hidden;white-space:nowrap}
+.split .keep{background:#8B93A3}
+.split .save{background:var(--good)}
+.split-key{display:flex;gap:22px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.split-key i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px}
+
+/* meta strip */
+.meta{display:flex;gap:30px;flex-wrap:wrap;padding:18px 0;border-bottom:1px solid var(--line);
+  font-size:12.5px;color:var(--muted)}
+.meta b{display:block;font-family:var(--mono);font-size:15px;color:var(--ink);font-weight:500}
+
+/* sections */
+section{padding:46px 0 0}
+h2{font-size:20px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+.lede{color:var(--muted);font-size:14px;margin:0 0 22px;max-width:66ch}
+
+/* findings */
+.f{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:20px 22px;margin-bottom:12px}
+.f-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px}
+.f-title{font-weight:600;font-size:16.5px;margin:0 0 3px}
+.f-amount{font-family:var(--mono);font-size:20px;font-weight:500;color:var(--good);
+  white-space:nowrap}
+.f-amount.neg{color:var(--risk)}
+.f-amount span{display:block;font-family:var(--sans);font-size:11px;color:var(--muted);
+  font-weight:400;text-align:right;margin-top:1px}
+.f-ev{font-size:14px;color:var(--muted);margin:8px 0 0;max-width:70ch}
+.f-do{font-size:14px;margin:10px 0 0;max-width:70ch}
+.f-do b{font-weight:600}
+.tags{display:flex;gap:6px;margin-top:13px;flex-wrap:wrap}
+.tag{font-size:11px;font-weight:500;padding:3px 9px;border-radius:20px;
+  background:var(--line-soft);color:#4A5462}
+.tag.ok{background:var(--good-wash);color:#254F3B}
+.tag.warn{background:var(--risk-wash);color:#7E3320}
+.tag.b{background:var(--brand-wash);color:#2A2A7C}
+
+/* trace */
+.trace{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px}
+.trace-key{display:flex;gap:20px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+.trace-key i{display:inline-block;width:14px;height:3px;border-radius:2px;
+  margin-right:6px;vertical-align:middle}
+
+/* tables */
+.tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);padding:12px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+td.n{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.pill{font-size:11px;font-weight:500;padding:2px 8px;border-radius:20px}
+.pill.ok{background:var(--good-wash);color:#254F3B}
+.pill.warn{background:var(--risk-wash);color:#7E3320}
+.pill.mid{background:var(--line-soft);color:#4A5462}
+
+/* cta */
+.cta{margin-top:52px;background:var(--ink);color:#F0F1EE;border-radius:12px;padding:34px}
+.cta h3{font-family:var(--display);font-weight:400;font-size:29px;margin:0 0 10px}
+.cta p{color:#A8AFBB;font-size:14.5px;margin:0 0 20px;max-width:56ch}
+.cta button{background:#fff;color:var(--ink);border-color:#fff}
+footer{margin-top:40px;padding-top:20px;border-top:1px solid var(--line);
+  font-size:12.5px;color:var(--muted)}
+@media(max-width:640px){
+  .f-head{flex-direction:column;gap:8px}
+  .f-amount span{text-align:left}
+  .intake h1{font-size:34px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="brand">bq<em>scan</em></div>
+  <div class="top-note">Runs entirely in your browser</div>
+</header>
+
+<!-- ══ intake ══ -->
+<div class="intake" id="intake">
+  <h1>Your BigQuery bill, itemised.</h1>
+  <p>Run the read-only scan query in your BigQuery console, then drop the result
+  here. You'll get a ranked list of what's costing you money and what to do about it.</p>
+
+  <div class="drop" id="drop">
+    <div class="drop-t">Drop your scan result</div>
+    <div class="drop-s">.json or .csv from BigQuery, or click to browse</div>
+    <input type="file" id="file" accept=".json,.csv,.txt" class="hide">
+  </div>
+
+  <textarea id="paste" placeholder="…or paste the JSON result cell here"></textarea>
+  <div class="row">
+    <button onclick="fromPaste()">Generate report</button>
+    <button class="ghost" onclick="loadSample()">See a sample report</button>
+  </div>
+  <div class="err" id="err"></div>
+
+  <div class="privacy">
+    <b>Nothing is uploaded.</b> This page has no backend. Your file is parsed by
+    JavaScript in this tab and never transmitted. Close the tab and it's gone.
+    Check your network panel — you'll see no outbound request.
+  </div>
+</div>
+
+<!-- ══ report ══ -->
+<div id="report" class="hide"></div>
+
+<footer id="foot" class="hide">
+  Estimates use BigQuery list pricing and a 30-day sample extrapolated to 12 months.
+  Actual savings depend on your negotiated rates and workload stability. Figures are
+  a starting point for a conversation, not a quote.
+</footer>
+
+</div>
+
+<script>
+const CFG = { cur:'€', tibPrice:6.25, slotPrice:0.06 };
+
+const fmt  = n => CFG.cur + Math.round(n).toLocaleString('en-US');
+const fmtK = n => Math.abs(n) >= 1000
+  ? CFG.cur + (n/1000).toFixed(n >= 10000 ? 0 : 1) + 'K'
+  : fmt(n);
+const num  = n => Number(n||0).toLocaleString('en-US',{maximumFractionDigits:1});
+const esc  = s => String(s??'').replace(/[<>&"]/g, c =>
+  ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+
+/* ── intake wiring ─────────────────────────────────────────── */
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+drop.onclick = () => fileInput.click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => {
+  e.preventDefault(); drop.classList.remove('over');
+  if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+};
+fileInput.onchange = e => { if (e.target.files[0]) readFile(e.target.files[0]); };
+
+function readFile(f){
+  const r = new FileReader();
+  r.onload = () => ingest(r.result);
+  r.onerror = () => fail('Could not read that file.');
+  r.readAsText(f);
+}
+function fromPaste(){
+  const v = document.getElementById('paste').value.trim();
+  if (!v) return fail('Paste the JSON result cell first.');
+  ingest(v);
+}
+function fail(m){
+  const e = document.getElementById('err');
+  e.textContent = m; e.style.display = 'block';
+}
+
+function ingest(raw){
+  let d;
+  try {
+    let t = raw.trim();
+    if (t.startsWith('costscan_result')) t = t.slice(t.indexOf('\n') + 1).trim();
+    if (t.startsWith('"') && t.endsWith('"')) t = JSON.parse(t);
+    d = JSON.parse(t);
+    if (Array.isArray(d)) d = d[0];
+    if (d.costscan_result) d = typeof d.costscan_result === 'string'
+      ? JSON.parse(d.costscan_result) : d.costscan_result;
+  } catch(_) {
+    return fail("That doesn't look like a scan result. Copy the whole JSON cell, or use \"Save results → JSON\".");
+  }
+  if (!d || !d.compute) return fail('Scan result is missing the compute section. Re-run the query.');
+  render(d);
+}
+
+/* ── findings engine ───────────────────────────────────────── */
+function buildFindings(d){
+  const F = [], days = d.window_days || 30, yr = 365 / days;
+  const c = d.compute || {}, a = d.antipatterns || {};
+  const be = (d.assumptions || {}).break_even_slot_hrs_per_tib || 104;
+  const storage = d.storage || [];
+
+  // 1. billing lane mismatch
+  const odCost = (c.on_demand_cost_window || 0) * yr;
+  const odSlots = c.on_demand_slot_hours != null
+    ? c.on_demand_slot_hours
+    : Math.max((c.slot_hours||0) - (c.reservation_slot_hours||0), 0);
+  const odRatio = c.on_demand_slot_hrs_per_tib != null
+    ? c.on_demand_slot_hrs_per_tib
+    : (c.on_demand_tib ? odSlots / c.on_demand_tib : null);
+  if (odCost > 1000 && odRatio != null && odRatio < be) {
+    const capCost = odSlots * yr * CFG.slotPrice * 1.2; // +20% autoscale overprovisioning
+    const save = Math.max(odCost - capCost, 0);
+    if (save > 500) F.push({
+      t:'Your on-demand workload is scan-heavy — capacity pricing would cost less',
+      amt:save, conf:'medium', effort:'2–4 weeks', risk:'Reversible',
+      ev:`Your on-demand queries use ${num(odRatio)} slot-hours per TiB scanned. Below ${num(be)}, capacity pricing wins — you're ${Math.round((1 - odRatio/be) * 100)}% under that line, so you're paying for bytes when compute is the cheaper meter.`,
+      do:'Create an Enterprise reservation with zero baseline and pure autoscale, then route the scan-heavy scheduled work to it. Leave compute-heavy queries on on-demand — on-demand does not bill compute, so that work is genuinely cheaper there. Fully reversible until you buy a commitment.'
+    });
+  }
+  // compute-heavy work sitting on a reservation is the mirror-image mistake
+  if ((c.reservation_slot_hours||0) > 0 && (c.overall_slot_hrs_per_tib||0) > be * 3) {
+    F.push({
+      t:'Compute-heavy work is running on capacity, where it costs most',
+      amt:0, conf:'medium', effort:'1–2 weeks', risk:'Reversible',
+      ev:`Overall you burn ${num(c.overall_slot_hrs_per_tib)} slot-hours per TiB — well above the ${num(be)} break-even. On-demand bills bytes and ignores compute entirely, so heavy transforms on small inputs are close to free there and expensive on a reservation.`,
+      do:'Identify the worst offenders by slot-hours per TiB and move those specific jobs back to an unassigned billing project. This is per-job routing, not a per-project switch.'
+    });
+  }
+
+  // 2. storage → physical
+  const phys = storage.filter(s => s.verdict === 'switch_to_physical');
+  const physSave = phys.reduce((n,s) => n + Math.max(s.monthly_delta||0, 0) * 12, 0);
+  if (physSave > 300) F.push({
+    t:`${phys.length} dataset${phys.length>1?'s':''} would be cheaper on physical storage billing`,
+    amt:physSave, conf:'high', effort:'1 day', risk:'Locked 14 days',
+    ev:`Best candidate: ${esc(phys[0].dataset)} compresses ${num(phys[0].compression_x)}× with a churn ratio of ${num(phys[0].churn_ratio)}, so time-travel bytes stay cheap — ${fmt(phys[0].monthly_delta)}/month on that one dataset alone.`,
+    do:'Run <b>ALTER SCHEMA … SET OPTIONS(storage_billing_model = \'PHYSICAL\')</b>. Measure the actual daily cost after the switch rather than trusting the estimate — the modelled figure usually overshoots.'
+  });
+
+  // 3. physical + churn = losing money (trust-builder)
+  const bad = storage.filter(s => s.verdict === 'switch_to_logical');
+  if (bad.length) F.push({
+    t:`${bad.length} dataset${bad.length>1?'s are':' is'} on physical billing and costing more for it`,
+    amt:-bad.reduce((n,s)=>n+Math.max(s.monthly_delta||0,0)*12,0),
+    conf:'high', effort:'1 day', risk:'Locked 14 days', neg:true,
+    ev:`${esc(bad[0].dataset)} costs ${fmt(bad[0].physical_cost_month)}/month on physical against ${fmt(bad[0].logical_cost_month)} on logical— it carries ${num(bad[0].churn_ratio)}× its live size in time-travel bytes, the signature of UPDATE or MERGE traffic, and physical bills those at the active rate.`,
+    do:'Switch these back to logical, or stop the rewrite pattern. Physical billing rewards append-only tables and punishes everything else.'
+  });
+
+  const unk = storage.filter(s => s.verdict === 'unknown_billing_model');
+  if (unk.length) F.push({
+    t:`Billing model unreadable for ${unk.length} dataset${unk.length>1?'s':''}`,
+    amt:0, conf:'high', effort:'IAM change', risk:'None',
+    ev:'The scan could not read SCHEMATA_OPTIONS for these projects, so it cannot tell whether they are on logical or physical billing. Their cost columns are still accurate; only the recommendation is withheld.',
+    do:'Grant <b>roles/bigquery.metadataViewer</b> on those projects and re-run. Until then treat these rows as unclassified rather than as no-ops.'
+  });
+
+  // 4. reservation ceiling vs demand
+  const dem = d.demand_by_hour || [], res = (d.reservations || [])[0];
+  if (res && dem.length) {
+    const peak = Math.max(...dem.map(h => h.peak_slots || 0));
+    // scaling_mode reservations put the cap in max_slots and leave autoscale at 0
+    const ceiling = res.effective_ceiling
+      || (res.max_slots || 0) || (res.autoscale_max || 0);
+    if (ceiling && peak >= ceiling * 0.95) F.push({
+      t:'Your reservation ceiling is binding',
+      amt:0, conf:'high', effort:'5 minutes', risk:'Raises cost', neg:false,
+      ev:`Peak demand hit ${num(peak)} slots against a ${num(ceiling)}-slot ceiling${res.scaling_mode ? ' (' + esc(res.scaling_mode) + ')' : ''}. Work is queueing, which shows up as pipeline runtime rather than as a line on the bill.`,
+      do:'Raise the reservation cap \u2014 <b>max_slots</b> if scaling_mode is set, otherwise <b>autoscale_max_slots</b> \u2014 and watch whether job durations drop. A binding ceiling trades a visible cost for an invisible one.'
+    });
+  }
+
+  // 5. long-running jobs
+  if ((a.over_1h_jobs||0) > 5) F.push({
+    t:`${num(a.over_1h_jobs)} queries ran longer than an hour`,
+    amt:0, conf:'high', effort:'1 hour', risk:'None',
+    ev:'Long runners are usually a multiply-referenced CTE being re-executed, or a missing partition filter. A handful of them can dominate a month of slot consumption.',
+    do:'Set <b>default_query_job_timeout_ms</b> at project level. Note that dbt Cloud stamps its own <b>jobTimeoutMs</b> on every job and overrides the project default — lower it there too, or the guard does nothing.'
+  });
+
+  // 6. select *
+  const textBase = a.text_scanned_jobs || 0;
+  const starPct = textBase ? (a.select_star_jobs||0) / textBase * 100 : 0;
+  if (starPct > 15) F.push({
+    t:`${starPct.toFixed(0)}% of queries use SELECT *`,
+    amt:(c.on_demand_cost_window||0) * yr * Math.min(starPct/100,.4) * .3,
+    conf:'low', effort:'Ongoing', risk:'None',
+    ev:`BigQuery is columnar, so SELECT * bills every column whether you read it or not. On a wide table that multiplies the scan several times over. Measured across ${num(textBase)} queries in the scanning project only \u2014 query text isn't readable org-wide.`,
+    do:'Name the columns. Biggest wins are in BI tool connections and scheduled queries, not in ad-hoc analysis.'
+  });
+
+  // 7. cache
+  if ((c.cache_hit_pct||0) < 5 && (c.jobs||0) > 5000) F.push({
+    t:`Result cache is doing almost nothing (${num(c.cache_hit_pct)}%)`,
+    amt:0, conf:'medium', effort:'Investigation', risk:'None',
+    ev:'Near-zero cache hits usually means a BI tool is injecting a comment, timestamp, or session id that makes every query textually unique.',
+    do:'Find the varying fragment and strip it. A cache hit costs nothing at all — this is the cheapest saving available anywhere in BigQuery.'
+  });
+
+  // 8. cross joins
+  if ((a.cross_join_jobs||0) > 0 && textBase) F.push({
+    t:`${num(a.cross_join_jobs)} queries contain a cross join`,
+    amt:0, conf:'medium', effort:'Per query', risk:'None',
+    ev:'Cross joins multiply row counts. They are occasionally intentional and usually a missing join condition.',
+    do:'Review each one. Slot consumption per byte scanned is the tell — these sit far above the break-even line.'
+  });
+
+  return F.sort((x,y) => Math.abs(y.amt) - Math.abs(x.amt));
+}
+
+/* ── demand trace ──────────────────────────────────────────── */
+function trace(dem){
+  if (!dem || !dem.length) return '';
+  const hasAvg = dem.some(h => h.avg_slots != null);
+  const W = 860, H = 200, PL = 52, PB = 26, PT = 16;
+  const peakMax = Math.max(...dem.map(h => h.peak_slots || 0), 10);
+  const p95Max  = Math.max(...dem.map(h => h.p95_slots  || 0), 10);
+  // Scale to p95, not peak. A single outlier minute in a 30-day window makes
+  // peak 5-10x p95 and squashes every other series onto the floor.
+  const max = Math.min(peakMax, p95Max * 1.25);
+  const clipped = peakMax > max * 1.02;
+  const x = i => PL + i * (W - PL - 12) / 23;
+  const y = v => PT + (1 - Math.min(v, max) / max) * (H - PT - PB);
+  const path = k => dem.map((h,i) =>
+    (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(h[k]||0).toFixed(1)).join(' ');
+  const band = 'M' + dem.map((h,i) => x(i).toFixed(1)+' '+y(h.p95_slots||0).toFixed(1)).join(' L')
+    + ' L' + dem.slice().reverse().map((h,i) =>
+      x(23-i).toFixed(1)+' '+y((hasAvg?h.avg_slots:h.p50_slots)||0).toFixed(1)).join(' L') + ' Z';
+  const ticks = [0, max/2, max].map(v =>
+    `<line x1="${PL}" y1="${y(v)}" x2="${W-12}" y2="${y(v)}" stroke="#EFEFEC" stroke-width="1"/>
+     <text x="${PL-8}" y="${y(v)+4}" text-anchor="end" font-size="10.5" fill="#646F7E"
+       font-family="IBM Plex Mono">${Math.round(v).toLocaleString('en-US')}</text>`).join('');
+  const hrs = [0,6,12,18,23].map(i =>
+    `<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="10.5" fill="#646F7E"
+       font-family="IBM Plex Mono">${String(i).padStart(2,'0')}</text>`).join('');
+  const note = clipped
+    ? `<text x="${W-12}" y="${PT-4}" text-anchor="end" font-size="10.5" fill="#A8452B"
+         font-family="IBM Plex Mono">peak ${Math.round(peakMax).toLocaleString('en-US')} \u2014 clipped</text>`
+    : '';
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Slot demand by hour">
+    ${ticks}
+    <path d="${band}" fill="#3B3AA8" opacity=".08"/>
+    <path d="${path('peak_slots')}" fill="none" stroke="#3B3AA8" stroke-width="1"
+      opacity=".35" stroke-dasharray="${clipped ? '3 3' : '0'}"/>
+    <path d="${path('p95_slots')}" fill="none" stroke="#3B3AA8" stroke-width="1.5" opacity=".7"/>
+    <path d="${hasAvg ? path('avg_slots') : path('p50_slots')}" fill="none"
+      stroke="#2F6B4F" stroke-width="2.6"/>
+    ${note}${hrs}
+  </svg>`;
+}
+
+/* ── render ────────────────────────────────────────────────── */
+let MOVE = [], SCAN = null;
+
+const CSV_ORDER = ['source_type','workload_id','destination_table','project_id',
+  'current_lane','recommended_lane','change_needed','annual_saving_if_moved',
+  'last_run','runs_recent',
+  'jobs','tib_billed','slot_hours','slot_hrs_per_tib','cost_if_on_demand',
+  'cost_if_capacity','avg_runtime_s'];
+// assembled at runtime so scrapers don't lift it from the static HTML
+function mailMe(){
+  const a = ['gopikirangogineni','gmail','com'];
+  location.href = 'mailto:' + a[0] + '@' + a[1] + '.' + a[2]
+    + '?subject=' + encodeURIComponent('BigQuery cost audit')
+    + '&body=' + encodeURIComponent(
+        'Hi Gopi,\n\nI ran the scan and would like to talk through the results.\n\n'
+        + 'Estimated recoverable: ' + (document.getElementById('hdr')?.textContent || '')
+        + '\n\n');
+}
+function changeFor(w){
+  const toCap = w.recommended_lane === 'capacity';
+  if (w.source_type === 'dbt') return toCap
+    ? 'Route this model to the reservation-assigned billing project (dbt sql_header / billing project config)'
+    : 'Route this model to an unassigned billing project \u2014 on-demand does not bill compute, and this model is compute-heavy';
+  if (w.source_type === 'scheduled_query') return toCap
+    ? 'Recreate the scheduled query under the reservation-assigned project'
+    : 'Recreate the scheduled query under an unassigned project';
+  return toCap
+    ? 'Move this workload to the reservation-assigned project'
+    : 'Move this workload off the reservation';
+}
+function toCsv(rows){
+  if (!rows.length) return '';
+  const seen = Object.keys(rows[0]);
+  const cols = [...CSV_ORDER.filter(c => seen.includes(c)),
+                ...seen.filter(c => !CSV_ORDER.includes(c))];
+  const cell = v => {
+    const t = v == null ? '' : String(v);
+    return /[",\n]/.test(t) ? '"' + t.replace(/"/g,'""') + '"' : t;
+  };
+  return [cols.join(','), ...rows.map(r => cols.map(c => cell(r[c])).join(','))].join('\n');
+}
+function download(name, text, mime){
+  const url = URL.createObjectURL(new Blob([text], {type: mime}));
+  const a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function dlCsv(){ download('bq-workloads-to-move.csv', toCsv(MOVE), 'text/csv'); }
+function dlJson(){ download('bq-scan-findings.json', JSON.stringify(SCAN, null, 2), 'application/json'); }
+
+function render(d){
+  SCAN = d;
+  MOVE = (d.workloads||[])
+    .filter(w => !w.already_correct && (w.annual_saving_if_moved||0) > 0)
+    .sort((a,b) => (b.annual_saving_if_moved||0) - (a.annual_saving_if_moved||0))
+    .slice(0, 25)
+    .map(w => ({...w, change_needed: changeFor(w)}));
+  const F = buildFindings(d);
+  const c = d.compute || {}, days = d.window_days || 30, yr = 365 / days;
+  const upside = F.filter(f => f.amt > 0).reduce((n,f) => n + f.amt, 0);
+  const spend  = ((c.on_demand_cost_window||0) + (c.reservation_slot_hours||0)*CFG.slotPrice) * yr;
+  const pct    = spend > 0 ? Math.min(upside / spend * 100, 95) : 0;
+
+  const tagCls = t => /reversible|none|^5 min|1 day|1 hour/i.test(t) ? 'ok'
+                    : /locked|raises/i.test(t) ? 'warn' : '';
+
+  document.getElementById('report').innerHTML = `
+  <div class="hero">
+    <div class="kicker">Estimated recoverable, next 12 months</div>
+    <p class="big" id="hdr">${fmtK(upside)}</p>
+    <div class="big-sub">${F.filter(f=>f.amt>0).length} actionable finding${F.filter(f=>f.amt>0).length===1?'':'s'}
+      across ${num(c.jobs)} queries and ${num(c.tib_billed)} TiB scanned in ${days} days.</div>
+    ${spend > 0 ? `
+    <div class="split">
+      <div class="keep" style="flex:${Math.max(100-pct,5)}">${fmtK(spend-upside)} unavoidable</div>
+      <div class="save" style="flex:${Math.max(pct,5)}">${fmtK(upside)}</div>
+    </div>
+    <div class="split-key">
+      <span><i style="background:#8B93A3"></i>Current run-rate ${fmtK(spend)}/yr</span>
+      <span><i style="background:#2F6B4F"></i>Recoverable ${pct.toFixed(0)}%</span>
+    </div>` : ''}
+  </div>
+
+  <div class="meta">
+    <div>Scope<b>${d.scope==='PROJECT' ? (d.projects_scanned||[]).length + ' project' + ((d.projects_scanned||[]).length===1?'':'s') : 'Organization'}</b></div>
+    <div>Region<b>${esc(d.region||'—')}</b></div>
+    <div>Window<b>${days} days</b></div>
+    <div>Slot-hours<b>${num(c.slot_hours)}</b></div>
+    <div>Slot-hrs / TiB<b>${num(c.overall_slot_hrs_per_tib)}</b></div>
+    <div>Cache hits<b>${num(c.cache_hit_pct)}%</b></div>
+    <div>Reservations<b>${(d.reservations||[]).length||'None'}</b></div>
+  </div>
+
+  ${(d.projects_skipped||[]).length ? `
+  <div class="f" style="border-left:3px solid var(--risk);margin-top:26px">
+    <p class="f-title">Partial coverage</p>
+    <p class="f-ev">${(d.projects_skipped||[]).length} project(s) were skipped for lack of access:
+    ${esc((d.projects_skipped||[]).join(', '))}. Everything below excludes them, so the
+    real numbers are larger than what's shown.</p>
+  </div>` : ''}
+
+  <section>
+    <h2>Findings</h2>
+    <p class="lede">Ranked by annual impact. Negative figures are money currently
+    being lost — those come first among equals, because they're the cheapest to fix.</p>
+    ${F.map(f => `
+      <div class="f">
+        <div class="f-head">
+          <div><p class="f-title">${f.t}</p></div>
+          ${f.amt !== 0 ? `<div class="f-amount ${f.neg?'neg':''}">${f.amt>0?'':'−'}${fmtK(Math.abs(f.amt))}
+            <span>${f.neg?'lost per year':'per year'}</span></div>` : ''}
+        </div>
+        <p class="f-ev">${f.ev}</p>
+        <p class="f-do">${f.do}</p>
+        <div class="tags">
+          <span class="tag b">${f.conf} confidence</span>
+          <span class="tag ${tagCls(f.effort)}">${f.effort}</span>
+          <span class="tag ${tagCls(f.risk)}">${f.risk}</span>
+        </div>
+      </div>`).join('')}
+  </section>
+
+  ${(d.demand_by_hour||[]).length ? `
+  <section>
+    <h2>Slot demand by hour</h2>
+    ${d.reconciliation && Math.abs((d.reconciliation.ratio||1) - 1) > 0.15 ? `
+    <div class="f" style="border-left:3px solid var(--risk);margin-bottom:16px">
+      <p class="f-title">Demand figures don't reconcile</p>
+      <p class="f-ev">The per-second timeline totals ${num(d.reconciliation.timeline_slot_hours)}
+      slot-hours; the job records total ${num(d.reconciliation.jobs_slot_hours)}
+      (ratio ${num(d.reconciliation.ratio)}). These measure the same thing, so a gap this
+      large means the timeline is double-counting \u2014 treat this chart as indicative
+      only and size nothing off it until it's resolved.</p>
+    </div>` : ''}
+    <p class="lede">Measured per minute. The average divides by <em>every</em> minute
+    in the window, including idle ones — averaging only over busy minutes is the
+    classic way to oversize a baseline. Percentiles cover active minutes only, which
+    is what the ceiling has to handle.</p>
+    <div class="trace">
+      ${trace(d.demand_by_hour)}
+      ${d.busiest_minute && (d.busiest_minute.at_utc || d.busiest_minute.at) ? `<div style="font-size:12.5px;color:var(--muted);margin-top:10px">
+        Busiest single minute in the window: <span class="mono">${num(d.busiest_minute.slots)}</span>
+        slots at <span class="mono">${esc(d.busiest_minute.at_utc || d.busiest_minute.at)}</span> UTC.</div>` : ''}
+      <div class="trace-key">
+        <span><i style="background:#2F6B4F;height:4px"></i>average over all minutes — sizes the baseline</span>
+        <span><i style="background:#3B3AA8;opacity:.65"></i>p95 — sizes the ceiling</span>
+        <span><i style="background:#3B3AA8;opacity:.35"></i>peak over the whole window</span>
+      </div>
+    </div>
+  </section>` : ''}
+
+  ${(d.storage||[]).length ? `
+  <section>
+    <h2>Storage</h2>
+    <p class="lede">Compression ratio decides whether physical billing wins. Churn
+    ratio decides whether it backfires.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Dataset</th><th>Now on</th><th>Compression</th><th>Churn</th>
+        <th>Logical /mo</th><th>Physical /mo</th><th>Action</th><th>Impact /mo</th></tr></thead>
+      <tbody>${d.storage.slice(0,16).map(s => {
+        const v = s.verdict==='switch_to_physical'    ? ['ok','Switch to physical']
+                : s.verdict==='switch_to_logical'     ? ['warn','Switch back to logical']
+                : s.verdict==='unknown_billing_model' ? ['mid','Billing model unreadable']
+                                                      : ['mid','Already optimal'];
+        const dlt = s.monthly_delta || 0;
+        return `<tr>
+          <td>${esc(s.dataset)}${s.high_churn?' <span class="pill warn" style="margin-left:4px">churn</span>':''}</td>
+          <td><span class="pill ${s.billing_model==='PHYSICAL'?'ok':s.billing_model==='UNKNOWN'?'warn':'mid'}">${esc(s.billing_model)}</span></td>
+          <td class="n">${num(s.compression_x)}×</td>
+          <td class="n">${num(s.churn_ratio)}</td>
+          <td class="n">${fmt(s.logical_cost_month)}</td>
+          <td class="n">${fmt(s.physical_cost_month)}</td>
+          <td><span class="pill ${v[0]}">${v[1]}</span></td>
+          <td class="n" style="color:${dlt>0?'var(--good)':'var(--muted)'};font-weight:${dlt>0?500:400}">${dlt>0?fmt(dlt):'—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </section>` : ''}
+
+  ${(d.top_consumers||[]).length ? `
+  <section>
+    <h2>Where the slot-time goes</h2>
+    <p class="lede">Identities are SHA-256 hashed in the scan query itself — you can
+    match a hash back to a person, we can't.</p>
+    <div class="tw"><table>
+      <thead><tr><th>Project</th><th>Principal</th><th>Jobs</th><th>TiB</th>
+        <th>Slot-hrs</th><th>Ratio</th><th>On-demand</th><th>Capacity</th>
+        <th>Cheaper on</th><th>Paying now</th></tr></thead>
+      <tbody>${d.top_consumers.slice(0,14).map(t => {
+        const cap = (t.cheaper_lane||t.lane)==='capacity_cheaper';
+        const hi = 'font-weight:500;color:var(--good)';
+        return `<tr>
+        <td>${esc(t.project_id)}</td>
+        <td class="n">${esc(String(t.principal_hash||'').slice(0,10))}</td>
+        <td class="n">${num(t.jobs)}</td>
+        <td class="n">${num(t.tib_billed)}</td>
+        <td class="n">${num(t.slot_hours)}</td>
+        <td class="n">${num(t.slot_hrs_per_tib)}</td>
+        <td class="n" style="${cap?'':hi}">${t.cost_if_on_demand!=null?fmt(t.cost_if_on_demand):'\u2014'}</td>
+        <td class="n" style="${cap?hi:''}">${t.cost_if_capacity!=null?fmt(t.cost_if_capacity):'\u2014'}</td>
+        <td><span class="pill ${cap?'ok':'mid'}">${cap?'Capacity':'On-demand'}</span></td>
+        <td class="n">${t.cost_current!=null?fmt(t.cost_current):'\u2014'}${
+          (t.saving_if_optimal||0) > 0
+            ? ` <span class="pill ok">\u2212${fmt(t.saving_if_optimal)}</span>` : ''}</td>
+      </tr>`;}).join('')}</tbody>
+    </table></div>
+  </section>` : ''}
+
+  ${(d.workloads||[]).length ? `
+  <section>
+    <h2>Top ${MOVE.length} workloads to move</h2>
+    <p class="lede">Every dbt model, scheduled query, and Explore, priced both ways.
+    Rows where the current lane already matches the cheaper one are hidden — these
+    ${MOVE.length} are the ones worth acting on, ${fmtK(MOVE.reduce((n,w)=>n+(w.annual_saving_if_moved||0),0))}/yr in total.</p>
+    <div class="legend">
+      <div><b>\u2192 Capacity</b> route to the reservation-assigned billing project</div>
+      <div><b>\u2192 On-demand</b> route to an unassigned project \u2014 on-demand doesn't bill compute</div>
+    </div>
+    <div class="row" style="margin:0 0 14px">
+      <button class="ghost" onclick="dlCsv()">Download CSV</button>
+      <button class="ghost" onclick="dlJson()">Download JSON</button>
+    </div>
+    <div class="tw"><table class="wl">
+      <thead><tr><th>Destination table</th><th>Move</th><th>Runs</th><th>TiB</th><th>Slot-hrs</th>
+        <th>Ratio</th><th>On-demand /mo</th><th>Capacity /mo</th>
+        <th>Saving /mo</th><th>Saving /yr</th></tr></thead>
+      <tbody>${MOVE.map(w => {
+        const f   = 30.44 / (d.window_days || 30);
+        const od  = (w.cost_if_on_demand || 0) * f;
+        const cap = (w.cost_if_capacity  || 0) * f;
+        const toCap = w.recommended_lane === 'capacity';
+        const hi  = 'font-weight:600;color:var(--good)';
+        const dim = 'color:var(--muted)';
+        return `<tr>
+        <td class="wl-name" title="${esc(w.workload_id)}\u2003\u2014\u2003${esc(w.change_needed||'')}">
+          <span class="pill ${w.source_type==='dbt'?'ok':w.source_type==='scheduled_query'?'b':'mid'}">${esc(w.source_type)}</span>
+          <b>${w.destination_table ? esc(w.destination_table) : esc(w.workload_id)}</b>
+        </td>
+        <td class="n" style="white-space:nowrap">${w.current_lane==='on_demand'?'On-demand':'Capacity'}
+          <span style="color:var(--brand)">\u2192</span>
+          <b>${toCap?'Capacity':'On-demand'}</b></td>
+        <td class="n">${num(w.jobs)}</td>
+        <td class="n">${num(w.tib_billed)}</td>
+        <td class="n">${num(w.slot_hours)}</td>
+        <td class="n">${num(w.slot_hrs_per_tib)}</td>
+        <td class="n" style="${toCap?dim:hi}">${fmt(od)}</td>
+        <td class="n" style="${toCap?hi:dim}">${fmt(cap)}</td>
+        <td class="n" style="color:var(--good);font-weight:600">${fmt((w.annual_saving_if_moved||0)/12)}</td>
+        <td class="n">${fmt(w.annual_saving_if_moved)}</td>
+      </tr>`;}).join('')}</tbody>
+      <tfoot><tr>
+        <td colspan="8" style="text-align:right;font-weight:600">Total across these ${MOVE.length}</td>
+        <td class="n" style="color:var(--good);font-weight:600">${fmt(MOVE.reduce((n,w)=>n+(w.annual_saving_if_moved||0),0)/12)}</td>
+        <td class="n" style="font-weight:600">${fmt(MOVE.reduce((n,w)=>n+(w.annual_saving_if_moved||0),0))}</td>
+      </tr></tfoot>
+    </table></div>
+
+  </section>` : ''}
+
+  <div class="cta">
+    <h3>Want these implemented?</h3>
+    <p>This report tells you what to do. The 10-day audit tells you the order, the
+    risk on each step, and hands you the DDL and merge requests. Fixed price — if it
+    doesn't find at least 3× its fee in annualised savings, you don't pay.</p>
+    <button onclick="mailMe()">Book a call</button>
+  </div>`;
+
+  document.getElementById('intake').classList.add('hide');
+  document.getElementById('report').classList.remove('hide');
+  document.getElementById('foot').classList.remove('hide');
+  window.scrollTo(0,0);
+}
+
+/* ── sample ────────────────────────────────────────────────── */
+function loadSample(){
+  const hrs = [];
+  for (let h=0; h<24; h++){
+    const load = h>=4 && h<=8 ? 1 : h>=9 && h<=17 ? .38 : .12;
+    hrs.push({ hour_utc:h,
+      avg_slots:Math.round(1150*load*.28), avg_slots_active:Math.round(1150*load*.62),
+      active_minutes:Math.round(1800*load*.45), total_minutes:1800,
+      p50_slots:Math.round(1150*load*.55),
+      p95_slots:Math.round(1150*load), peak_slots:Math.round(1150*load*1.42) });
+  }
+  ingest(JSON.stringify({
+    scan_version:'2.0', scope:'PROJECT', region:'region-eu', window_days:30,
+    recent_days:1, actionable_sources:['dbt','scheduled_query'],
+    projects_scanned:['acme-bi-prod','acme-ai-prod','acme-data-raw'], projects_skipped:[],
+    assumptions:{ break_even_slot_hrs_per_tib:104 },
+    compute:{ jobs:184203, tib_billed:1042.6, slot_hours:61400,
+      on_demand_tib:874.2, on_demand_cost_window:5464,
+      reservation_slot_hours:21400, on_demand_slot_hours:40000,
+      on_demand_slot_hrs_per_tib:45.8, cache_hit_pct:2.1,
+      overall_slot_hrs_per_tib:58.9 },
+    antipatterns:{ text_scanned_jobs:71400, select_star_jobs:16100,
+      cross_join_jobs:26, unbounded_sort_jobs:310, merge_jobs:1840, over_1h_jobs:47 },
+    top_consumers:[
+      {project_id:'acme-bi-prod',  principal_hash:'a3f91c7e42', jobs:64100, tib_billed:412.5, slot_hours:12400, slot_hrs_per_tib:30.1, cost_if_on_demand:2578, cost_if_capacity:893, cost_current:2578, saving_if_optimal:1685, cheaper_lane:'capacity_cheaper'},
+      {project_id:'acme-bi-prod',  principal_hash:'7b21d0aa96', jobs:39800, tib_billed:288.1, slot_hours:16900, slot_hrs_per_tib:58.7, cost_if_on_demand:1801, cost_if_capacity:1217, cost_current:1801, saving_if_optimal:584, cheaper_lane:'capacity_cheaper'},
+      {project_id:'acme-ai-prod',  principal_hash:'ce4408b117', jobs:12400, tib_billed:4.3,   slot_hours:21200, slot_hrs_per_tib:4930.2, cost_if_on_demand:27, cost_if_capacity:1526, cost_current:1526, saving_if_optimal:1499, cheaper_lane:'on_demand_cheaper'},
+      {project_id:'acme-data-raw', principal_hash:'19ff7c2d55', jobs:8900,  tib_billed:141.2, slot_hours:8100, slot_hrs_per_tib:57.4, cost_if_on_demand:883, cost_if_capacity:583, cost_current:883, saving_if_optimal:300, cheaper_lane:'capacity_cheaper'}
+    ],
+    demand_by_hour:hrs,
+    storage:[
+      {project_id:'acme-data-raw', dataset:'ingestion_events', table_count:212, compression_x:24.6, churn_ratio:0.02, billing_model:'LOGICAL', logical_cost_month:2480, physical_cost_month:196, recommended_model:'PHYSICAL', already_correct:false, monthly_delta:2284, verdict:'switch_to_physical', high_churn:false},
+      {project_id:'acme-data-raw', dataset:'replica_cdc', table_count:96, compression_x:2.0, churn_ratio:0.92, billing_model:'PHYSICAL', logical_cost_month:71, physical_cost_month:254, recommended_model:'LOGICAL', already_correct:false, monthly_delta:183, verdict:'switch_to_logical', high_churn:true},
+      {project_id:'acme-bi-prod',  dataset:'dbt_intermediate', table_count:1428, compression_x:5.8, churn_ratio:0.2, billing_model:'PHYSICAL', logical_cost_month:445, physical_cost_month:245, recommended_model:'PHYSICAL', already_correct:true, monthly_delta:0, verdict:'already_optimal', high_churn:false},
+      {project_id:'acme-bi-prod',  dataset:'dbt_marts_core', table_count:88, compression_x:1.1, churn_ratio:0.8, billing_model:'UNKNOWN', logical_cost_month:26, physical_cost_month:127, recommended_model:'LOGICAL', already_correct:false, monthly_delta:0, verdict:'unknown_billing_model', high_churn:true},
+      {project_id:'acme-ai-prod',  dataset:'app_curation', table_count:44, compression_x:24.8, churn_ratio:0, billing_model:'PHYSICAL', logical_cost_month:26, physical_cost_month:2, recommended_model:'PHYSICAL', already_correct:true, monthly_delta:0, verdict:'already_optimal', high_churn:false},
+      {project_id:'acme-bi-prod',  dataset:'braze', table_count:12, compression_x:5.4, churn_ratio:0, billing_model:'LOGICAL', logical_cost_month:14, physical_cost_month:5, recommended_model:'PHYSICAL', already_correct:false, monthly_delta:9, verdict:'switch_to_physical', high_churn:false}
+    ],
+    workloads:[
+      {project_id:'acme-bi-prod',source_type:'dbt',workload_id:'model.acme.fct_listens_daily',destination_table:'acme-bi-prod.marts.fct_listens_daily',last_run:'2026-08-23T03:14:00Z',runs_recent:1,current_lane:'on_demand',jobs:720,avg_runtime_s:184,tib_billed:214.8,slot_hours:6100,slot_hrs_per_tib:28.4,cost_if_on_demand:1342.5,cost_if_capacity:439.2,recommended_lane:'capacity',already_correct:false,annual_saving_if_moved:10993},
+      {project_id:'acme-bi-prod',source_type:'scheduled_query',workload_id:'reporting.daily_kpi_rollup',destination_table:'acme-bi-prod.reporting.daily_kpi_rollup',last_run:'2026-08-23T05:00:00Z',runs_recent:1,current_lane:'on_demand',jobs:30,avg_runtime_s:612,tib_billed:96.4,slot_hours:2840,slot_hrs_per_tib:29.5,cost_if_on_demand:602.5,cost_if_capacity:204.5,recommended_lane:'capacity',already_correct:false,annual_saving_if_moved:4843},
+      {project_id:'acme-ai-prod',source_type:'dbt',workload_id:'model.acme.int_user_features',destination_table:'acme-ai-prod.intermediate.int_user_features',last_run:'2026-08-23T04:02:00Z',runs_recent:3,current_lane:'reservation',jobs:900,avg_runtime_s:2140,tib_billed:0.9,slot_hours:18400,slot_hrs_per_tib:20444.4,cost_if_on_demand:5.6,cost_if_capacity:1324.8,recommended_lane:'on_demand',already_correct:false,annual_saving_if_moved:16050},
+      {project_id:'acme-bi-prod',source_type:'dbt',workload_id:'model.acme.fct_episode_performance',destination_table:'acme-bi-prod.marts.fct_episode_performance',last_run:'2026-08-23T03:41:00Z',runs_recent:1,current_lane:'on_demand',jobs:2610,avg_runtime_s:22,tib_billed:141.2,slot_hours:3900,slot_hrs_per_tib:27.6,cost_if_on_demand:882.5,cost_if_capacity:280.8,recommended_lane:'capacity',already_correct:false,annual_saving_if_moved:7320},
+      {project_id:'acme-bi-prod',source_type:'dbt',workload_id:'model.acme.stg_events',destination_table:'acme-bi-prod.staging.stg_events',last_run:'2026-08-23T03:02:00Z',runs_recent:1,current_lane:'on_demand',jobs:720,avg_runtime_s:41,tib_billed:12.1,slot_hours:280,slot_hrs_per_tib:23.1,cost_if_on_demand:75.6,cost_if_capacity:20.2,recommended_lane:'capacity',already_correct:false,annual_saving_if_moved:674}
+    ],
+    reservations:[{reservation_name:'acme-eu-shared', edition:'ENTERPRISE', slot_capacity:0, autoscale_max:0, max_slots:1200, scaling_mode:'ALL_SLOTS', effective_ceiling:1200}]
+  }));
+}
+</script>
+</body>
+</html>

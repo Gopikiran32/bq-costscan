@@ -1,0 +1,7 @@
+scan_result.json
+*.csv
+*.json
+!package.json
+.DS_Store
+node_modules/
+.wrangler/

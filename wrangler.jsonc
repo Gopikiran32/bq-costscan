@@ -1,0 +1,15 @@
+{
+  // Static-only Worker. No `main` entry point is needed until you add an API
+  // route — at which point you add "main": "./worker/index.js" here and keep
+  // everything else the same. That's the whole reason to start on Workers
+  // rather than Pages: no re-platforming when the site grows a backend.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bq-costscan",
+  "compatibility_date": "2026-08-24",
+  "assets": {
+    "directory": "./site"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
