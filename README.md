@@ -9,6 +9,8 @@ anyone. The SQL runs in your project; the report renders in your browser.
 
 ---
 
+**New here?** [QUICKSTART.md](QUICKSTART.md) walks through it start to finish.
+
 ## How it works
 
 | Step | What you do | What you get |
@@ -67,10 +69,10 @@ involving an org admin.
 ## Running the scan
 
 **1. Set the processing location** to match your data, or you'll get
-`Table ... was not found in location US`.
+`Table ... was not found in location US`. This is the step everyone forgets.
 
-- Console: **More → Query settings → Data location**
-- CLI: `bq query --location=EU ...`
+In the BigQuery console: **More → Query settings → Data location →** pick your
+region (e.g. *European Union (EU)*) **→ Save**.
 
 **2. Edit the DECLARE block** at the top of the file:
 
@@ -88,15 +90,25 @@ that holds tables** — those are usually different. Job history lives where a q
 was submitted; storage lives where the tables are. Missing one silently
 undercounts rather than warning you.
 
-**3. Run it**, then either copy the single result cell or use **Save results →
-JSON**. From the CLI:
+**3. Run it.** Paste the whole file into the query editor — it's a script and
+runs as a single statement. Takes about a minute.
+
+**4. Save the result.** You get one row with one column. Click the cell to expand
+it, or use **Save results → JSON** to download it directly.
+
+**5. Open the report** — `site/index.html` — and drop the file in.
+
+<details>
+<summary>Prefer the command line?</summary>
 
 ```bash
 bq query --location=EU --use_legacy_sql=false --format=prettyjson \
   < scan/costscan_project_v2.sql > scan_result.json
 ```
 
-**4. Open the report** and drop the file in.
+The console is the recommended path. Reading the SQL before running it is the
+point, and the editor puts it in front of you.
+</details>
 
 ---
 
